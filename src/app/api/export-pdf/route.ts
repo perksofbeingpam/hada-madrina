@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CVOutput } from "@/types";
 
+/** Escapes all HTML special characters to prevent injection into Puppeteer-rendered HTML. */
+function esc(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+/** Only allow https:// and http:// URLs in href attributes; blocks javascript: and data: URIs. */
+function safeHref(url: string | null | undefined): string {
+  const trimmed = String(url ?? "").trim();
+  if (/^https?:\/\//i.test(trimmed)) return esc(trimmed);
+  return "#";
+}
+
 function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
   const skillsList = cv.core_skills
-    .map((s) => `<span class="skill-tag">${s}</span>`)
+    .map((s) => `<span class="skill-tag">${esc(s)}</span>`)
     .join("");
 
   const experienceHtml = cv.experience
@@ -12,13 +29,13 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
     <div class="experience-item">
       <div class="exp-header">
         <div class="exp-left">
-          <span class="exp-title">${exp.title}</span>
-          <span class="exp-company">${exp.company}${exp.location ? ` · ${exp.location}` : ""}</span>
+          <span class="exp-title">${esc(exp.title)}</span>
+          <span class="exp-company">${esc(exp.company)}${exp.location ? ` · ${esc(exp.location)}` : ""}</span>
         </div>
-        <span class="exp-dates">${exp.dates}</span>
+        <span class="exp-dates">${esc(exp.dates)}</span>
       </div>
       <ul class="bullets">
-        ${exp.bullets.map((b) => `<li>${b}</li>`).join("")}
+        ${exp.bullets.map((b) => `<li>${esc(b)}</li>`).join("")}
       </ul>
     </div>
   `
@@ -31,10 +48,10 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
     <div class="edu-item">
       <div class="exp-header">
         <div class="exp-left">
-          <span class="exp-title">${edu.degree}</span>
-          <span class="exp-company">${edu.institution}</span>
+          <span class="exp-title">${esc(edu.degree)}</span>
+          <span class="exp-company">${esc(edu.institution)}</span>
         </div>
-        <span class="exp-dates">${edu.year}</span>
+        <span class="exp-dates">${esc(edu.year)}</span>
       </div>
     </div>
   `
@@ -47,7 +64,7 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
     <section class="section">
       <h2 class="section-title">Certifications</h2>
       <div class="cert-grid">
-        ${cv.certifications.map((c) => `<span class="cert-item">${c}</span>`).join("")}
+        ${cv.certifications.map((c) => `<span class="cert-item">${esc(c)}</span>`).join("")}
       </div>
     </section>
   `
@@ -58,7 +75,7 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
       ? `
     <section class="section">
       <h2 class="section-title">Languages</h2>
-      <div class="skills-list">${cv.languages.map((l) => `<span class="skill-tag">${l}</span>`).join("")}</div>
+      <div class="skills-list">${cv.languages.map((l) => `<span class="skill-tag">${esc(l)}</span>`).join("")}</div>
     </section>
   `
       : "";
@@ -68,7 +85,7 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
     <div class="page-break"></div>
     <div class="cover-letter-page">
       <h1 class="cover-letter-title">Cover Letter</h1>
-      <div class="cover-letter-body">${coverLetter.split("\n\n").map((p) => `<p>${p}</p>`).join("")}</div>
+      <div class="cover-letter-body">${coverLetter.split("\n\n").map((p) => `<p>${esc(p)}</p>`).join("")}</div>
     </div>
   `
     : "";
@@ -78,7 +95,7 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${cv.name} — CV</title>
+  <title>${esc(cv.name)} — CV</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -203,12 +220,12 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
 <body>
   <div class="cv-page">
     <header class="cv-header">
-      <h1 class="cv-name">${cv.name}</h1>
+      <h1 class="cv-name">${esc(cv.name)}</h1>
       <div class="cv-contact">
-        ${cv.contact.email ? `<span>${cv.contact.email}</span>` : ""}
-        ${cv.contact.phone ? `<span>${cv.contact.phone}</span>` : ""}
-        ${cv.contact.location ? `<span>${cv.contact.location}</span>` : ""}
-        ${cv.contact.linkedin ? `<span><a href="${cv.contact.linkedin}">${cv.contact.linkedin}</a></span>` : ""}
+        ${cv.contact.email ? `<span>${esc(cv.contact.email)}</span>` : ""}
+        ${cv.contact.phone ? `<span>${esc(cv.contact.phone)}</span>` : ""}
+        ${cv.contact.location ? `<span>${esc(cv.contact.location)}</span>` : ""}
+        ${cv.contact.linkedin ? `<span><a href="${safeHref(cv.contact.linkedin)}">${esc(cv.contact.linkedin)}</a></span>` : ""}
       </div>
     </header>
 
@@ -217,7 +234,7 @@ function buildCVHtml(cv: CVOutput, coverLetter?: string): string {
         ? `
     <section class="section">
       <h2 class="section-title">Professional Summary</h2>
-      <p class="summary-text">${cv.summary}</p>
+      <p class="summary-text">${esc(cv.summary)}</p>
     </section>
     `
         : ""
@@ -300,7 +317,7 @@ export async function POST(req: NextRequest) {
       return new NextResponse(pdf, {
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${cvOutput.name.replace(/\s+/g, "_")}_CV.pdf"`,
+          "Content-Disposition": `attachment; filename="${esc(cvOutput.name).replace(/\s+/g, "_")}_CV.pdf"`,
         },
       });
     } catch (puppeteerError) {
